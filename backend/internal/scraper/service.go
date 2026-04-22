@@ -155,10 +155,12 @@ func (s *Service) RunDailyScrape(ctx context.Context) error {
 	}
 
 	// Mark completed
-	s.db.Exec(ctx,
+	if _, err := s.db.Exec(ctx,
 		`UPDATE scraping_jobs SET status = 'COMPLETED', records_processed = $2, completed_at = NOW() WHERE idempotency_key = $1`,
 		idempotencyKey, recordsProcessed,
-	)
+	); err != nil {
+		s.logger.Error("failed to mark job completed", map[string]interface{}{"error": err.Error()})
+	}
 
 	s.logger.Info("daily scrape completed", map[string]interface{}{
 		"records_processed": recordsProcessed,
@@ -172,19 +174,23 @@ func (s *Service) RunResultsUpdate(ctx context.Context) error {
 	idempotencyKey := fmt.Sprintf("results_update_%s_%s", time.Now().UTC().Format("2006-01-02"), time.Now().UTC().Format("15"))
 
 	var exists bool
-	s.db.QueryRow(ctx,
+	if err := s.db.QueryRow(ctx,
 		`SELECT EXISTS(SELECT 1 FROM scraping_jobs WHERE idempotency_key = $1 AND status = 'COMPLETED')`,
 		idempotencyKey,
-	).Scan(&exists)
+	).Scan(&exists); err != nil {
+		return fmt.Errorf("checking idempotency: %w", err)
+	}
 	if exists {
 		return nil
 	}
 
 	jobID := uuid.New()
-	s.db.Exec(ctx,
+	if _, err := s.db.Exec(ctx,
 		`INSERT INTO scraping_jobs (id, job_type, status, idempotency_key, started_at) VALUES ($1, $2, $3, $4, NOW()) ON CONFLICT (idempotency_key) DO NOTHING`,
 		jobID, "RESULTS_UPDATE", "RUNNING", idempotencyKey,
-	)
+	); err != nil {
+		return fmt.Errorf("inserting scraping job: %w", err)
+	}
 
 	// Fetch yesterday's and today's game results
 	yesterday := time.Now().UTC().AddDate(0, 0, -1).Format("2006-01-02")
@@ -208,10 +214,12 @@ func (s *Service) RunResultsUpdate(ctx context.Context) error {
 		recordsProcessed++
 	}
 
-	s.db.Exec(ctx,
+	if _, err := s.db.Exec(ctx,
 		`UPDATE scraping_jobs SET status = 'COMPLETED', records_processed = $2, completed_at = NOW() WHERE idempotency_key = $1`,
 		idempotencyKey, recordsProcessed,
-	)
+	); err != nil {
+		s.logger.Error("failed to mark results job completed", map[string]interface{}{"error": err.Error()})
+	}
 
 	return nil
 }
@@ -438,7 +446,9 @@ func (s *Service) fetchGamesForDate(ctx context.Context, date string) ([]NBAGame
 	}
 
 	var result map[string]interface{}
-	json.Unmarshal(body, &result)
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, fmt.Errorf("parsing game results: %w", err)
+	}
 
 	var games []NBAGame
 	// Parse similar to fetchTodaysGames
@@ -553,8 +563,10 @@ func (s *Service) updateGameResult(ctx context.Context, game NBAGame) error {
 }
 
 func (s *Service) markJobFailed(ctx context.Context, key, errMsg string) {
-	s.db.Exec(ctx,
+	if _, err := s.db.Exec(ctx,
 		`UPDATE scraping_jobs SET status = 'FAILED', error_message = $2, completed_at = NOW() WHERE idempotency_key = $1`,
 		key, errMsg,
-	)
+	); err != nil {
+		s.logger.Error("failed to mark job as failed", map[string]interface{}{"error": err.Error()})
+	}
 }

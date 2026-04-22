@@ -3,6 +3,7 @@ package user
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -168,15 +169,27 @@ func (s *Service) DeleteAllUserData(ctx context.Context, userID uuid.UUID) error
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	// Delete in order respecting foreign keys
-	tx.Exec(ctx, `DELETE FROM user_badges WHERE user_id = $1`, userID)
-	tx.Exec(ctx, `DELETE FROM bankroll_entries WHERE user_id = $1`, userID)
-	tx.Exec(ctx, `DELETE FROM user_preferences WHERE user_id = $1`, userID)
-	tx.Exec(ctx, `DELETE FROM refresh_tokens WHERE user_id = $1`, userID)
-	tx.Exec(ctx, `UPDATE audit_logs SET user_id = NULL, details = '{"anonymized": true}' WHERE user_id = $1`, userID)
-	tx.Exec(ctx, `DELETE FROM users WHERE id = $1`, userID)
+	if _, err := tx.Exec(ctx, `DELETE FROM user_badges WHERE user_id = $1`, userID); err != nil {
+		return fmt.Errorf("deleting user badges: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM bankroll_entries WHERE user_id = $1`, userID); err != nil {
+		return fmt.Errorf("deleting bankroll entries: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM user_preferences WHERE user_id = $1`, userID); err != nil {
+		return fmt.Errorf("deleting user preferences: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM refresh_tokens WHERE user_id = $1`, userID); err != nil {
+		return fmt.Errorf("deleting refresh tokens: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `UPDATE audit_logs SET user_id = NULL, details = '{"anonymized": true}' WHERE user_id = $1`, userID); err != nil {
+		return fmt.Errorf("anonymizing audit logs: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM users WHERE id = $1`, userID); err != nil {
+		return fmt.Errorf("deleting user: %w", err)
+	}
 
 	if err := tx.Commit(ctx); err != nil {
 		return err

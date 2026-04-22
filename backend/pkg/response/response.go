@@ -27,7 +27,7 @@ type Meta struct {
 func JSON(w http.ResponseWriter, status int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(APIResponse{
+	_ = json.NewEncoder(w).Encode(APIResponse{
 		Success: status >= 200 && status < 300,
 		Data:    data,
 	})
@@ -36,7 +36,7 @@ func JSON(w http.ResponseWriter, status int, data interface{}) {
 func JSONWithMeta(w http.ResponseWriter, status int, data interface{}, meta *Meta) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(APIResponse{
+	_ = json.NewEncoder(w).Encode(APIResponse{
 		Success: true,
 		Data:    data,
 		Meta:    meta,
@@ -46,7 +46,7 @@ func JSONWithMeta(w http.ResponseWriter, status int, data interface{}, meta *Met
 func Error(w http.ResponseWriter, status int, code, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(APIResponse{
+	_ = json.NewEncoder(w).Encode(APIResponse{
 		Success: false,
 		Error: &APIError{
 			Code:    code,

@@ -73,7 +73,7 @@ func (l *Logger) log(level Level, message string, fields map[string]interface{})
 		return
 	}
 	data = append(data, '\n')
-	l.output.Write(data)
+	_, _ = l.output.Write(data)
 
 	if level == LevelFatal {
 		os.Exit(1)

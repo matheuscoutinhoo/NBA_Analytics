@@ -26,7 +26,7 @@ import (
 
 func main() {
 	// Load .env in development
-	godotenv.Load()
+	_ = godotenv.Load()
 
 	log := logger.Default()
 

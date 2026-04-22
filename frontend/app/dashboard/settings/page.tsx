@@ -51,7 +51,7 @@ export default function SettingsPage() {
          a.click();
          window.URL.revokeObjectURL(url);
          document.body.removeChild(a);
-      } catch (err) {
+      } catch (_err) {
          alert("Failed to export data");
       }
    };
@@ -62,7 +62,7 @@ export default function SettingsPage() {
          await api.deleteAccount();
          logout();
          window.location.href = "/";
-      } catch (err) {
+      } catch (_err) {
          alert("Failed to delete account");
       }
    };

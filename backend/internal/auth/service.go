@@ -161,7 +161,9 @@ func (s *Service) RefreshTokens(ctx context.Context, refreshToken string) (*Toke
 
 	if storedToken.Revoked {
 		// Potential token reuse attack - revoke all user tokens
-		s.repo.RevokeAllUserTokens(ctx, storedToken.UserID)
+		if err := s.repo.RevokeAllUserTokens(ctx, storedToken.UserID); err != nil {
+			s.logger.Error("failed to revoke tokens on reuse detection", map[string]interface{}{"error": err.Error()})
+		}
 		s.logger.Warn("possible token reuse attack detected", map[string]interface{}{
 			"user_id": storedToken.UserID,
 		})

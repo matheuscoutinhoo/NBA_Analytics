@@ -149,7 +149,7 @@ func (s *Service) GetEntries(ctx context.Context, userID uuid.UUID, page, perPag
 	offset := (page - 1) * perPage
 
 	var total int
-	s.db.QueryRow(ctx, `SELECT COUNT(*) FROM bankroll_entries WHERE user_id = $1`, userID).Scan(&total)
+	_ = s.db.QueryRow(ctx, `SELECT COUNT(*) FROM bankroll_entries WHERE user_id = $1`, userID).Scan(&total)
 
 	rows, err := s.db.Query(ctx,
 		`SELECT id, user_id, game_id, entry_type, bet_type, odd, stake, result, balance_after, notes, created_at
@@ -181,27 +181,27 @@ func (s *Service) GetDashboard(ctx context.Context, userID uuid.UUID) (*Dashboar
 	stats.CurrentBalance = s.getCurrentBalance(ctx, userID)
 
 	// Totals
-	s.db.QueryRow(ctx,
+	_ = s.db.QueryRow(ctx,
 		`SELECT COALESCE(SUM(stake), 0) FROM bankroll_entries WHERE user_id = $1 AND entry_type = 'DEPOSIT'`,
 		userID,
 	).Scan(&stats.TotalDeposits)
 
-	s.db.QueryRow(ctx,
+	_ = s.db.QueryRow(ctx,
 		`SELECT COALESCE(SUM(stake), 0) FROM bankroll_entries WHERE user_id = $1 AND entry_type = 'WITHDRAWAL'`,
 		userID,
 	).Scan(&stats.TotalWithdrawals)
 
-	s.db.QueryRow(ctx,
+	_ = s.db.QueryRow(ctx,
 		`SELECT COUNT(*) FROM bankroll_entries WHERE user_id = $1 AND entry_type IN ('BET', 'WIN', 'LOSS')`,
 		userID,
 	).Scan(&stats.TotalBets)
 
-	s.db.QueryRow(ctx,
+	_ = s.db.QueryRow(ctx,
 		`SELECT COUNT(*) FROM bankroll_entries WHERE user_id = $1 AND entry_type = 'WIN'`,
 		userID,
 	).Scan(&stats.WinCount)
 
-	s.db.QueryRow(ctx,
+	_ = s.db.QueryRow(ctx,
 		`SELECT COUNT(*) FROM bankroll_entries WHERE user_id = $1 AND entry_type = 'LOSS'`,
 		userID,
 	).Scan(&stats.LossCount)
@@ -250,7 +250,7 @@ func (s *Service) GetDashboard(ctx context.Context, userID uuid.UUID) (*Dashboar
 
 func (s *Service) getCurrentBalance(ctx context.Context, userID uuid.UUID) float64 {
 	var balance float64
-	s.db.QueryRow(ctx,
+	_ = s.db.QueryRow(ctx,
 		`SELECT COALESCE(balance_after, 0) FROM bankroll_entries WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1`,
 		userID,
 	).Scan(&balance)

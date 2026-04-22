@@ -18,7 +18,9 @@ func NewHandler(service *Service) *Handler {
 // TriggerDailyScrape - Admin endpoint to manually trigger daily scrape
 func (h *Handler) TriggerDailyScrape(w http.ResponseWriter, r *http.Request) {
 	go func() {
-		h.service.RunDailyScrape(r.Context())
+		if err := h.service.RunDailyScrape(r.Context()); err != nil {
+			h.service.logger.Error("daily scrape failed", map[string]interface{}{"error": err.Error()})
+		}
 	}()
 
 	response.JSON(w, http.StatusAccepted, map[string]interface{}{
@@ -30,7 +32,9 @@ func (h *Handler) TriggerDailyScrape(w http.ResponseWriter, r *http.Request) {
 // TriggerResultsUpdate - Admin endpoint for results update
 func (h *Handler) TriggerResultsUpdate(w http.ResponseWriter, r *http.Request) {
 	go func() {
-		h.service.RunResultsUpdate(r.Context())
+		if err := h.service.RunResultsUpdate(r.Context()); err != nil {
+			h.service.logger.Error("results update failed", map[string]interface{}{"error": err.Error()})
+		}
 	}()
 
 	response.JSON(w, http.StatusAccepted, map[string]interface{}{
