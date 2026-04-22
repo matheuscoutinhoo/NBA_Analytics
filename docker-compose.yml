@@ -1,0 +1,100 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: better-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: better
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-better_secure_password}
+      POSTGRES_DB: better
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/migrations/000001_init_schema.up.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - ./backend/migrations/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U better"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - better-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: better-redis
+    restart: unless-stopped
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - better-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: better-backend
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: "8080"
+      ENVIRONMENT: production
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: better
+      DB_PASSWORD: ${DB_PASSWORD:-better_secure_password}
+      DB_NAME: better
+      DB_SSLMODE: disable
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?JWT_ACCESS_SECRET is required}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET is required}
+      JWT_ACCESS_TTL: "15m"
+      JWT_REFRESH_TTL: "168h"
+      ODDS_API_KEY: ${ODDS_API_KEY:-}
+      ABACUS_API_KEY: ${ABACUS_API_KEY:-}
+      ABACUS_API_URL: ${ABACUS_API_URL:-}
+      RATE_LIMIT_IP: "100"
+      RATE_LIMIT_USER: "1000"
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - better-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: better-frontend
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8080/api/v1
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - better-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  better-network:
+    driver: bridge
