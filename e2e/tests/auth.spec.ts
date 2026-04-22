@@ -1,53 +1,63 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from "@playwright/test";
 
-test.describe('Authentication', () => {
-   test('should display login page', async ({ page }) => {
-      await page.goto('/login');
-      await expect(page.getByText('Welcome back')).toBeVisible();
-      await expect(page.getByLabel('Email')).toBeVisible();
-      await expect(page.getByLabel('Password')).toBeVisible();
-      await expect(page.getByRole('button', { name: /sign in/i })).toBeVisible();
-   });
+test.describe("Auth Flow", () => {
+  const testEmail = `test-${Date.now()}@example.com`;
+  const testPassword = "TestPass123!";
 
-   test('should display register page with compliance elements', async ({ page }) => {
-      await page.goto('/register');
-      await expect(page.getByText('Create Account')).toBeVisible();
-      await expect(page.getByLabel('Username')).toBeVisible();
-      await expect(page.getByLabel('Email')).toBeVisible();
-      await expect(page.getByText('18 years or older')).toBeVisible();
-      await expect(page.getByText('consent to the processing')).toBeVisible();
-      await expect(page.getByText('informational purposes only')).toBeVisible();
-   });
+  test("should show login page", async ({ page }) => {
+    await page.goto("/login");
+    await expect(page.getByRole("heading", { name: /sign in/i })).toBeVisible();
+    await expect(page.getByPlaceholder(/email/i)).toBeVisible();
+    await expect(page.getByPlaceholder(/password/i)).toBeVisible();
+  });
 
-   test('should require age verification', async ({ page }) => {
-      await page.goto('/register');
-      await page.getByLabel('Username').fill('testuser');
-      await page.getByLabel('Email').fill('test@example.com');
-      await page.getByLabel('Password').fill('password123');
-      // Do NOT check age verification
-      await page.getByRole('button', { name: /create account/i }).click();
-      await expect(page.getByText('18 or older')).toBeVisible();
-   });
+  test("should navigate to register", async ({ page }) => {
+    await page.goto("/login");
+    await page.click("text=Create an account");
+    await expect(page).toHaveURL(/.*register/);
+  });
 
-   test('should navigate from login to register', async ({ page }) => {
-      await page.goto('/login');
-      await page.getByText('Create one').click();
-      await expect(page).toHaveURL(/\/register/);
-   });
-});
+  test("should register a new user", async ({ page }) => {
+    await page.goto("/register");
+    await page.fill('input[type="email"]', testEmail);
+    const passwordInputs = page.locator('input[type="password"]');
+    await passwordInputs.nth(0).fill(testPassword);
+    await passwordInputs.nth(1).fill(testPassword);
+    await page.click('button[type="submit"]');
+    await page.waitForURL("**/dashboard", { timeout: 10000 });
+    await expect(page).toHaveURL(/.*dashboard/);
+  });
 
-test.describe('Landing Page', () => {
-   test('should display landing page with key elements', async ({ page }) => {
-      await page.goto('/');
-      await expect(page.getByText('NBA Analytics & Intelligence')).toBeVisible();
-      await expect(page.getByText('Informational purposes only')).toBeVisible();
-      await expect(page.getByText('Responsible Gaming')).toBeVisible();
-      await expect(page.getByText('does not accept')).toBeVisible();
-   });
+  test("should show validation errors for weak password", async ({ page }) => {
+    await page.goto("/register");
+    await page.fill('input[type="email"]', "weak@test.com");
+    const passwordInputs = page.locator('input[type="password"]');
+    await passwordInputs.nth(0).fill("123");
+    await passwordInputs.nth(1).fill("123");
+    await page.click('button[type="submit"]');
+    await expect(page.locator(".bg-red-500\\/10")).toBeVisible({ timeout: 5000 });
+  });
 
-   test('should have navigation links', async ({ page }) => {
-      await page.goto('/');
-      await expect(page.getByRole('link', { name: /sign in/i })).toBeVisible();
-      await expect(page.getByRole('link', { name: /get started/i })).toBeVisible();
-   });
+  test("should login with existing credentials", async ({ page }) => {
+    await page.goto("/login");
+    await page.fill('input[type="email"]', testEmail);
+    await page.fill('input[type="password"]', testPassword);
+    await page.click('button[type="submit"]');
+    await page.waitForURL("**/dashboard", { timeout: 10000 });
+    await expect(page).toHaveURL(/.*dashboard/);
+  });
+
+  test("should show error for wrong password", async ({ page }) => {
+    await page.goto("/login");
+    await page.fill('input[type="email"]', testEmail);
+    await page.fill('input[type="password"]', "WrongPassword1!");
+    await page.click('button[type="submit"]');
+    await expect(page.locator(".bg-red-500\\/10")).toBeVisible({ timeout: 5000 });
+  });
+
+  test("should redirect unauthenticated users to login", async ({ page }) => {
+    await page.goto("/dashboard");
+    await page.waitForURL("**/login", { timeout: 10000 });
+    await expect(page).toHaveURL(/.*login/);
+  });
 });

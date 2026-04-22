@@ -1,35 +1,36 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { Providers } from "@/components/providers";
+import { AuthProvider } from "@/hooks/useAuth";
 
-const inter = Inter({
-   subsets: ["latin"],
-   variable: "--font-sans",
+const geistSans = Geist({
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
 });
 
-const jetbrainsMono = JetBrains_Mono({
-   subsets: ["latin"],
-   variable: "--font-mono",
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
-   title: "Better - NBA Analytics Platform",
-   description:
-      "Advanced NBA probabilistic analysis platform for sports analytics and intelligence. Informational purposes only.",
-   keywords: ["NBA", "analytics", "statistics", "basketball", "sports intelligence"],
+  title: "NBA Bet Insights",
+  description: "NBA betting analysis and bankroll management",
 };
 
 export default function RootLayout({
-   children,
-}: {
-   children: React.ReactNode;
-}) {
-   return (
-      <html lang="en" className="dark" suppressHydrationWarning>
-         <body className={`${inter.variable} ${jetbrainsMono.variable} font-sans antialiased`}>
-            <Providers>{children}</Providers>
-         </body>
-      </html>
-   );
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return (
+    <html
+      lang="en"
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased dark`}
+    >
+      <body className="min-h-full flex flex-col bg-gray-950 text-white">
+        <AuthProvider>{children}</AuthProvider>
+      </body>
+    </html>
+  );
 }

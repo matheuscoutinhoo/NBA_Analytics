@@ -1,203 +1,145 @@
 package middleware
 
 import (
-	"context"
 	"net/http"
-	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
 
 	"golang.org/x/time/rate"
-
-	"github.com/better/backend/internal/auth"
-	"github.com/better/backend/pkg/logger"
-	"github.com/better/backend/pkg/response"
 )
 
-type Middleware struct {
-	authService *auth.Service
-	logger      *logger.Logger
-	ipLimiters  map[string]*rate.Limiter
-	mu          sync.RWMutex
-	ipRate      int
+type SecurityMiddleware struct {
+	allowedOrigins map[string]bool
+	isProduction   bool
 }
 
-func New(authService *auth.Service, log *logger.Logger, ipRate int) *Middleware {
-	return &Middleware{
-		authService: authService,
-		logger:      log,
-		ipLimiters:  make(map[string]*rate.Limiter),
-		ipRate:      ipRate,
+func NewSecurityMiddleware(origins string, isProduction bool) *SecurityMiddleware {
+	allowed := make(map[string]bool)
+	for _, o := range strings.Split(origins, ",") {
+		allowed[strings.TrimSpace(o)] = true
 	}
+	return &SecurityMiddleware{allowedOrigins: allowed, isProduction: isProduction}
 }
 
-// Logging middleware
-func (m *Middleware) Logging(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
-
-		wrapped := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
-		next.ServeHTTP(wrapped, r)
-
-		m.logger.Info("request completed", map[string]interface{}{
-			"method":     r.Method,
-			"path":       r.URL.Path,
-			"status":     wrapped.statusCode,
-			"duration":   time.Since(start).String(),
-			"ip":         getClientIP(r),
-			"user_agent": r.UserAgent(),
-		})
-	})
-}
-
-// Recovery middleware
-func (m *Middleware) Recovery(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		defer func() {
-			if err := recover(); err != nil {
-				m.logger.Error("panic recovered", map[string]interface{}{
-					"error": err,
-					"stack": string(debug.Stack()),
-					"path":  r.URL.Path,
-				})
-				response.InternalError(w)
-			}
-		}()
-		next.ServeHTTP(w, r)
-	})
-}
-
-// Authentication middleware
-func (m *Middleware) Authenticate(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		authHeader := r.Header.Get("Authorization")
-		if authHeader == "" {
-			response.Unauthorized(w, "missing authorization header")
-			return
-		}
-
-		parts := strings.SplitN(authHeader, " ", 2)
-		if len(parts) != 2 || parts[0] != "Bearer" {
-			response.Unauthorized(w, "invalid authorization header format")
-			return
-		}
-
-		claims, err := m.authService.ValidateAccessToken(parts[1])
-		if err != nil {
-			response.Unauthorized(w, "invalid or expired token")
-			return
-		}
-
-		ctx := context.WithValue(r.Context(), auth.ClaimsContextKey{}, claims)
-		next.ServeHTTP(w, r.WithContext(ctx))
-	})
-}
-
-// RequireRole middleware
-func (m *Middleware) RequireRole(role string) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			claims, ok := r.Context().Value(auth.ClaimsContextKey{}).(*auth.Claims)
-			if !ok {
-				response.Unauthorized(w, "not authenticated")
-				return
-			}
-
-			if claims.Role != role {
-				response.Forbidden(w, "insufficient permissions")
-				return
-			}
-
-			next.ServeHTTP(w, r)
-		})
-	}
-}
-
-// Rate limiting middleware
-func (m *Middleware) RateLimit(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ip := getClientIP(r)
-		limiter := m.getIPLimiter(ip)
-
-		if !limiter.Allow() {
-			response.TooManyRequests(w, "rate limit exceeded, please try again later")
-			return
-		}
-
-		next.ServeHTTP(w, r)
-	})
-}
-
-// Security headers middleware
-func (m *Middleware) SecurityHeaders(next http.Handler) http.Handler {
+func (s *SecurityMiddleware) SecurityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("X-XSS-Protection", "1; mode=block")
-		w.Header().Set("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
-		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'")
 		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; frame-ancestors 'none'")
 		w.Header().Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+
+		if s.isProduction {
+			w.Header().Set("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload")
+		}
 
 		next.ServeHTTP(w, r)
 	})
 }
 
-func (m *Middleware) getIPLimiter(ip string) *rate.Limiter {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	limiter, exists := m.ipLimiters[ip]
-	if !exists {
-		// Allow ipRate requests per minute with burst of ipRate/10
-		limiter = rate.NewLimiter(rate.Every(time.Minute/time.Duration(m.ipRate)), m.ipRate/10)
-		m.ipLimiters[ip] = limiter
-
-		// Cleanup old limiters periodically (every 1000 entries)
-		if len(m.ipLimiters) > 1000 {
-			go m.cleanupLimiters()
+func (s *SecurityMiddleware) CORS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		origin := r.Header.Get("Origin")
+		if s.allowedOrigins[origin] {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-CSRF-Token")
+			w.Header().Set("Access-Control-Max-Age", "86400")
 		}
+
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+// Rate limiting
+type visitor struct {
+	limiter  *rate.Limiter
+	lastSeen time.Time
+}
+
+type RateLimiter struct {
+	visitors map[string]*visitor
+	mu       sync.Mutex
+	rpm      int
+}
+
+func NewRateLimiter(rpm int) *RateLimiter {
+	rl := &RateLimiter{
+		visitors: make(map[string]*visitor),
+		rpm:      rpm,
 	}
-
-	return limiter
+	go rl.cleanupVisitors()
+	return rl
 }
 
-func (m *Middleware) cleanupLimiters() {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	// Simple cleanup: reset all limiters
-	m.ipLimiters = make(map[string]*rate.Limiter)
+func (rl *RateLimiter) getVisitor(ip string) *rate.Limiter {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+
+	v, exists := rl.visitors[ip]
+	if !exists {
+		limiter := rate.NewLimiter(rate.Every(time.Minute/time.Duration(rl.rpm)), rl.rpm)
+		rl.visitors[ip] = &visitor{limiter: limiter, lastSeen: time.Now()}
+		return limiter
+	}
+	v.lastSeen = time.Now()
+	return v.limiter
 }
 
-func getClientIP(r *http.Request) string {
-	// Check X-Forwarded-For first (trusted proxy)
+func (rl *RateLimiter) cleanupVisitors() {
+	for {
+		time.Sleep(time.Minute)
+		rl.mu.Lock()
+		for ip, v := range rl.visitors {
+			if time.Since(v.lastSeen) > 3*time.Minute {
+				delete(rl.visitors, ip)
+			}
+		}
+		rl.mu.Unlock()
+	}
+}
+
+func (rl *RateLimiter) Limit(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ip := getIP(r)
+		limiter := rl.getVisitor(ip)
+		if !limiter.Allow() {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusTooManyRequests)
+			w.Write([]byte(`{"error":"rate limit exceeded"}`))
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func getIP(r *http.Request) string {
 	forwarded := r.Header.Get("X-Forwarded-For")
 	if forwarded != "" {
 		parts := strings.Split(forwarded, ",")
 		return strings.TrimSpace(parts[0])
 	}
-
-	// Check X-Real-Ip
-	realIP := r.Header.Get("X-Real-Ip")
-	if realIP != "" {
-		return realIP
+	ip := r.RemoteAddr
+	if idx := strings.LastIndex(ip, ":"); idx != -1 {
+		ip = ip[:idx]
 	}
-
-	// Fallback to RemoteAddr
-	parts := strings.Split(r.RemoteAddr, ":")
-	if len(parts) > 0 {
-		return parts[0]
-	}
-	return r.RemoteAddr
+	return ip
 }
 
-type responseWriter struct {
-	http.ResponseWriter
-	statusCode int
-}
-
-func (rw *responseWriter) WriteHeader(code int) {
-	rw.statusCode = code
-	rw.ResponseWriter.WriteHeader(code)
+// Request size limiter
+func MaxBodySize(maxBytes int64) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
+			next.ServeHTTP(w, r)
+		})
+	}
 }

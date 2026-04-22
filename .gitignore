@@ -1,21 +1,26 @@
-# Dependencies
-node_modules/
-vendor/
-
-# Build outputs
-/backend/better-api
-/frontend/.next/
-/frontend/out/
-dist/
-
 # Environment
 .env
 .env.local
-.env.*.local
+.env.production
+
+# Go
+backend/data/
+backend/tmp/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Node
+node_modules/
+.next/
+out/
+coverage/
 
 # IDE
+.vscode/settings.json
 .idea/
-.vscode/
 *.swp
 *.swo
 
@@ -23,25 +28,9 @@ dist/
 .DS_Store
 Thumbs.db
 
-# Go
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
-*.test
-*.out
-go.work
-go.work.sum
-
-# Docker volumes
-postgres_data/
-redis_data/
-
-# Test results
-coverage/
+# Test
 test-results/
 playwright-report/
 
-# Logs
-*.log
+# Docker
+docker-compose.override.yml

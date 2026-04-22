@@ -1,164 +1,153 @@
 package auth
 
 import (
-	"context"
+	"database/sql"
 	"fmt"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/matheuscoutinhoo/better/internal/models"
 )
 
-type PostgresRepository struct {
-	db *pgxpool.Pool
+type Repository struct {
+	db *sql.DB
 }
 
-func NewPostgresRepository(db *pgxpool.Pool) *PostgresRepository {
-	return &PostgresRepository{db: db}
+func NewRepository(db *sql.DB) *Repository {
+	return &Repository{db: db}
 }
 
-func (r *PostgresRepository) CreateUser(ctx context.Context, user *User) error {
-	query := `
-		INSERT INTO users (id, username, email, password_hash, role, is_active, age_verified, consent_given, consent_given_at, xp_points, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`
-
-	_, err := r.db.Exec(ctx, query,
-		user.ID, user.Username, user.Email, user.PasswordHash,
-		user.Role, user.IsActive, user.AgeVerified, user.ConsentGiven,
-		user.ConsentGivenAt, user.XPPoints, user.CreatedAt, user.UpdatedAt,
+func (r *Repository) CreateUser(email, passwordHash, role string) (*models.User, error) {
+	result, err := r.db.Exec(
+		"INSERT INTO users (email, password_hash, role) VALUES (?, ?, ?)",
+		email, passwordHash, role,
 	)
 	if err != nil {
-		return fmt.Errorf("creating user: %w", err)
+		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
-	return nil
+
+	id, err := result.LastInsertId()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get last insert id: %w", err)
+	}
+
+	return r.GetUserByID(id)
 }
 
-func (r *PostgresRepository) GetUserByEmail(ctx context.Context, email string) (*User, error) {
-	query := `
-		SELECT id, username, email, password_hash, role, is_active, age_verified, consent_given, consent_given_at, xp_points, created_at, updated_at
-		FROM users WHERE email = $1 AND deleted_at IS NULL`
-
-	user := &User{}
-	err := r.db.QueryRow(ctx, query, email).Scan(
-		&user.ID, &user.Username, &user.Email, &user.PasswordHash,
-		&user.Role, &user.IsActive, &user.AgeVerified, &user.ConsentGiven,
-		&user.ConsentGivenAt, &user.XPPoints, &user.CreatedAt, &user.UpdatedAt,
-	)
+func (r *Repository) GetUserByEmail(email string) (*models.User, error) {
+	user := &models.User{}
+	err := r.db.QueryRow(
+		"SELECT id, email, password_hash, role, created_at, updated_at, deleted_at FROM users WHERE email = ?",
+		email,
+	).Scan(&user.ID, &user.Email, &user.PasswordHash, &user.Role, &user.CreatedAt, &user.UpdatedAt, &user.DeletedAt)
 	if err != nil {
-		if err == pgx.ErrNoRows {
+		if err == sql.ErrNoRows {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("getting user by email: %w", err)
+		return nil, fmt.Errorf("failed to get user by email: %w", err)
 	}
 	return user, nil
 }
 
-func (r *PostgresRepository) GetUserByID(ctx context.Context, id uuid.UUID) (*User, error) {
-	query := `
-		SELECT id, username, email, password_hash, role, is_active, age_verified, consent_given, consent_given_at, xp_points, created_at, updated_at
-		FROM users WHERE id = $1 AND deleted_at IS NULL`
-
-	user := &User{}
-	err := r.db.QueryRow(ctx, query, id).Scan(
-		&user.ID, &user.Username, &user.Email, &user.PasswordHash,
-		&user.Role, &user.IsActive, &user.AgeVerified, &user.ConsentGiven,
-		&user.ConsentGivenAt, &user.XPPoints, &user.CreatedAt, &user.UpdatedAt,
-	)
+func (r *Repository) GetUserByID(id int64) (*models.User, error) {
+	user := &models.User{}
+	err := r.db.QueryRow(
+		"SELECT id, email, password_hash, role, created_at, updated_at, deleted_at FROM users WHERE id = ?",
+		id,
+	).Scan(&user.ID, &user.Email, &user.PasswordHash, &user.Role, &user.CreatedAt, &user.UpdatedAt, &user.DeletedAt)
 	if err != nil {
-		if err == pgx.ErrNoRows {
+		if err == sql.ErrNoRows {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("getting user by id: %w", err)
+		return nil, fmt.Errorf("failed to get user by id: %w", err)
 	}
 	return user, nil
 }
 
-func (r *PostgresRepository) GetUserByUsername(ctx context.Context, username string) (*User, error) {
-	query := `
-		SELECT id, username, email, password_hash, role, is_active, age_verified, consent_given, consent_given_at, xp_points, created_at, updated_at
-		FROM users WHERE username = $1 AND deleted_at IS NULL`
-
-	user := &User{}
-	err := r.db.QueryRow(ctx, query, username).Scan(
-		&user.ID, &user.Username, &user.Email, &user.PasswordHash,
-		&user.Role, &user.IsActive, &user.AgeVerified, &user.ConsentGiven,
-		&user.ConsentGivenAt, &user.XPPoints, &user.CreatedAt, &user.UpdatedAt,
+func (r *Repository) UpdateUser(id int64, email string) error {
+	_, err := r.db.Exec(
+		"UPDATE users SET email = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+		email, id,
 	)
+	return err
+}
+
+func (r *Repository) UpdatePassword(id int64, passwordHash string) error {
+	_, err := r.db.Exec(
+		"UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+		passwordHash, id,
+	)
+	return err
+}
+
+func (r *Repository) SoftDeleteUser(id int64) error {
+	_, err := r.db.Exec(
+		"UPDATE users SET deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+		id,
+	)
+	return err
+}
+
+// Refresh token methods
+func (r *Repository) StoreRefreshToken(userID int64, tokenHash string, expiresAt time.Time) error {
+	_, err := r.db.Exec(
+		"INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES (?, ?, ?)",
+		userID, tokenHash, expiresAt,
+	)
+	return err
+}
+
+func (r *Repository) GetRefreshToken(tokenHash string) (*models.RefreshToken, error) {
+	rt := &models.RefreshToken{}
+	err := r.db.QueryRow(
+		"SELECT id, user_id, token_hash, expires_at, revoked, created_at FROM refresh_tokens WHERE token_hash = ?",
+		tokenHash,
+	).Scan(&rt.ID, &rt.UserID, &rt.TokenHash, &rt.ExpiresAt, &rt.Revoked, &rt.CreatedAt)
 	if err != nil {
-		if err == pgx.ErrNoRows {
+		if err == sql.ErrNoRows {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("getting user by username: %w", err)
+		return nil, fmt.Errorf("failed to get refresh token: %w", err)
 	}
-	return user, nil
+	return rt, nil
 }
 
-func (r *PostgresRepository) UpdateUser(ctx context.Context, user *User) error {
-	query := `
-		UPDATE users SET username = $2, email = $3, password_hash = $4, role = $5,
-		is_active = $6, age_verified = $7, consent_given = $8, consent_given_at = $9,
-		xp_points = $10, updated_at = $11
-		WHERE id = $1 AND deleted_at IS NULL`
+func (r *Repository) RevokeRefreshToken(tokenHash string) error {
+	_, err := r.db.Exec("UPDATE refresh_tokens SET revoked = 1 WHERE token_hash = ?", tokenHash)
+	return err
+}
 
-	_, err := r.db.Exec(ctx, query,
-		user.ID, user.Username, user.Email, user.PasswordHash,
-		user.Role, user.IsActive, user.AgeVerified, user.ConsentGiven,
-		user.ConsentGivenAt, user.XPPoints, user.UpdatedAt,
+func (r *Repository) RevokeAllUserTokens(userID int64) error {
+	_, err := r.db.Exec("UPDATE refresh_tokens SET revoked = 1 WHERE user_id = ?", userID)
+	return err
+}
+
+// Login attempts (brute force protection)
+func (r *Repository) RecordLoginAttempt(email, ip string, success bool) error {
+	successInt := 0
+	if success {
+		successInt = 1
+	}
+	_, err := r.db.Exec(
+		"INSERT INTO login_attempts (email, ip_address, success) VALUES (?, ?, ?)",
+		email, ip, successInt,
 	)
-	if err != nil {
-		return fmt.Errorf("updating user: %w", err)
-	}
-	return nil
+	return err
 }
 
-func (r *PostgresRepository) DeleteUser(ctx context.Context, id uuid.UUID) error {
-	query := `UPDATE users SET deleted_at = NOW(), updated_at = NOW() WHERE id = $1`
-	_, err := r.db.Exec(ctx, query, id)
-	if err != nil {
-		return fmt.Errorf("soft deleting user: %w", err)
-	}
-	return nil
+func (r *Repository) GetRecentFailedAttempts(email string, since time.Time) (int, error) {
+	var count int
+	err := r.db.QueryRow(
+		"SELECT COUNT(*) FROM login_attempts WHERE email = ? AND success = 0 AND attempted_at > ?",
+		email, since,
+	).Scan(&count)
+	return count, err
 }
 
-func (r *PostgresRepository) StoreRefreshToken(ctx context.Context, userID uuid.UUID, tokenHash string, expiresAt time.Time) error {
-	query := `INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, $3)`
-	_, err := r.db.Exec(ctx, query, userID, tokenHash, expiresAt)
-	if err != nil {
-		return fmt.Errorf("storing refresh token: %w", err)
-	}
-	return nil
-}
-
-func (r *PostgresRepository) GetRefreshToken(ctx context.Context, tokenHash string) (*RefreshToken, error) {
-	query := `SELECT id, user_id, token_hash, expires_at, revoked FROM refresh_tokens WHERE token_hash = $1`
-	token := &RefreshToken{}
-	err := r.db.QueryRow(ctx, query, tokenHash).Scan(
-		&token.ID, &token.UserID, &token.TokenHash, &token.ExpiresAt, &token.Revoked,
+// Audit logs
+func (r *Repository) CreateAuditLog(log *models.AuditLog) error {
+	_, err := r.db.Exec(
+		"INSERT INTO audit_logs (user_id, action, entity, entity_id, ip_address, user_agent) VALUES (?, ?, ?, ?, ?, ?)",
+		log.UserID, log.Action, log.Entity, log.EntityID, log.IPAddress, log.UserAgent,
 	)
-	if err != nil {
-		if err == pgx.ErrNoRows {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("getting refresh token: %w", err)
-	}
-	return token, nil
-}
-
-func (r *PostgresRepository) RevokeRefreshToken(ctx context.Context, tokenHash string) error {
-	query := `UPDATE refresh_tokens SET revoked = true, revoked_at = NOW() WHERE token_hash = $1`
-	_, err := r.db.Exec(ctx, query, tokenHash)
-	if err != nil {
-		return fmt.Errorf("revoking refresh token: %w", err)
-	}
-	return nil
-}
-
-func (r *PostgresRepository) RevokeAllUserTokens(ctx context.Context, userID uuid.UUID) error {
-	query := `UPDATE refresh_tokens SET revoked = true, revoked_at = NOW() WHERE user_id = $1 AND revoked = false`
-	_, err := r.db.Exec(ctx, query, userID)
-	if err != nil {
-		return fmt.Errorf("revoking all user tokens: %w", err)
-	}
-	return nil
+	return err
 }

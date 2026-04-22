@@ -3,183 +3,128 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { BarChart3, Eye, EyeOff, Shield } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useAuthStore } from "@/store";
-import { api } from "@/lib/api";
+import { useAuth } from "@/hooks/useAuth";
+import { TrendingUp, Eye, EyeOff } from "lucide-react";
 
 export default function RegisterPage() {
-   const [username, setUsername] = useState("");
-   const [email, setEmail] = useState("");
-   const [password, setPassword] = useState("");
-   const [showPassword, setShowPassword] = useState(false);
-   const [ageVerified, setAgeVerified] = useState(false);
-   const [consent, setConsent] = useState(false);
-   const [error, setError] = useState("");
-   const [loading, setLoading] = useState(false);
-   const { setUser, setTokens } = useAuthStore();
-   const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const { register } = useAuth();
+  const router = useRouter();
 
-   const handleSubmit = async (e: React.FormEvent) => {
-      e.preventDefault();
-      setError("");
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
 
-      if (!ageVerified) {
-         setError("You must verify you are 18 or older");
-         return;
-      }
-      if (!consent) {
-         setError("You must consent to data processing");
-         return;
-      }
+    if (password !== confirmPassword) {
+      setError("Passwords do not match");
+      return;
+    }
 
-      setLoading(true);
+    setLoading(true);
+    try {
+      await register(email, password);
+      router.push("/login?registered=true");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Registration failed");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-      try {
-         const response = await api.register({
-            username,
-            email,
-            password,
-            age_verified: ageVerified,
-            consent,
-         });
-         const data = (response as any).data;
-         setUser(data.user);
-         setTokens(data.tokens.access_token, data.tokens.refresh_token);
-         router.push("/dashboard");
-      } catch (err: any) {
-         setError(err.message || "Registration failed");
-      } finally {
-         setLoading(false);
-      }
-   };
+  return (
+    <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4">
+      <div className="w-full max-w-md">
+        <div className="text-center mb-8">
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <TrendingUp className="h-8 w-8 text-orange-500" />
+            <h1 className="text-2xl font-bold text-white">NBA Bet Insights</h1>
+          </div>
+          <p className="text-gray-400">Create your account</p>
+        </div>
 
-   return (
-      <div className="min-h-screen flex items-center justify-center bg-background px-4 py-8">
-         <Card className="w-full max-w-md">
-            <CardHeader className="text-center">
-               <div className="flex justify-center mb-4">
-                  <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center">
-                     <BarChart3 className="w-7 h-7 text-primary-foreground" />
-                  </div>
-               </div>
-               <CardTitle className="text-2xl">Create Account</CardTitle>
-               <CardDescription>Start your NBA analytics journey</CardDescription>
-            </CardHeader>
-            <CardContent>
-               <form onSubmit={handleSubmit} className="space-y-4">
-                  {error && (
-                     <div className="bg-destructive/10 text-destructive text-sm p-3 rounded-md">
-                        {error}
-                     </div>
-                  )}
-                  <div className="space-y-2">
-                     <Label htmlFor="username">Username</Label>
-                     <Input
-                        id="username"
-                        type="text"
-                        placeholder="analyst_pro"
-                        value={username}
-                        onChange={(e) => setUsername(e.target.value)}
-                        required
-                        minLength={3}
-                        maxLength={30}
-                        pattern="[a-zA-Z0-9_]+"
-                        autoComplete="username"
-                     />
-                  </div>
-                  <div className="space-y-2">
-                     <Label htmlFor="email">Email</Label>
-                     <Input
-                        id="email"
-                        type="email"
-                        placeholder="you@example.com"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        required
-                        autoComplete="email"
-                     />
-                  </div>
-                  <div className="space-y-2">
-                     <Label htmlFor="password">Password</Label>
-                     <div className="relative">
-                        <Input
-                           id="password"
-                           type={showPassword ? "text" : "password"}
-                           placeholder="Min 8 characters"
-                           value={password}
-                           onChange={(e) => setPassword(e.target.value)}
-                           required
-                           minLength={8}
-                           maxLength={72}
-                           autoComplete="new-password"
-                        />
-                        <button
-                           type="button"
-                           onClick={() => setShowPassword(!showPassword)}
-                           className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                        >
-                           {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                        </button>
-                     </div>
-                  </div>
+        <form onSubmit={handleSubmit} className="bg-gray-900 rounded-xl border border-gray-800 p-6 space-y-4">
+          {error && (
+            <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-lg text-sm">
+              {error}
+            </div>
+          )}
 
-                  {/* Age verification */}
-                  <div className="flex items-start gap-2">
-                     <input
-                        type="checkbox"
-                        id="age"
-                        checked={ageVerified}
-                        onChange={(e) => setAgeVerified(e.target.checked)}
-                        className="mt-1 rounded border-input"
-                     />
-                     <label htmlFor="age" className="text-sm text-muted-foreground">
-                        I confirm I am <strong>18 years or older</strong>
-                     </label>
-                  </div>
+          <div>
+            <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-1">
+              Email
+            </label>
+            <input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+              placeholder="you@example.com"
+            />
+          </div>
 
-                  {/* Consent - LGPD */}
-                  <div className="flex items-start gap-2">
-                     <input
-                        type="checkbox"
-                        id="consent"
-                        checked={consent}
-                        onChange={(e) => setConsent(e.target.checked)}
-                        className="mt-1 rounded border-input"
-                     />
-                     <label htmlFor="consent" className="text-sm text-muted-foreground">
-                        I consent to the processing of my data as described in the{" "}
-                        <Link href="/privacy" className="text-primary hover:underline">
-                           Privacy Policy
-                        </Link>
-                        . I can withdraw consent and request data deletion at any time.
-                     </label>
-                  </div>
+          <div>
+            <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-1">
+              Password
+            </label>
+            <div className="relative">
+              <input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={8}
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent pr-10"
+                placeholder="Min 8 chars, upper, lower, digit"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
 
-                  {/* Disclaimer */}
-                  <div className="bg-muted/50 p-3 rounded-md flex items-start gap-2">
-                     <Shield size={16} className="text-muted-foreground mt-0.5 flex-shrink-0" />
-                     <p className="text-xs text-muted-foreground">
-                        This platform is for informational purposes only. It does not accept,
-                        intermediate, or execute bets. Past performance does not guarantee future results.
-                     </p>
-                  </div>
+          <div>
+            <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-300 mb-1">
+              Confirm Password
+            </label>
+            <input
+              id="confirmPassword"
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              required
+              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+              placeholder="••••••••"
+            />
+          </div>
 
-                  <Button type="submit" className="w-full" disabled={loading}>
-                     {loading ? "Creating account..." : "Create Account"}
-                  </Button>
-               </form>
-               <div className="mt-4 text-center text-sm text-muted-foreground">
-                  Already have an account?{" "}
-                  <Link href="/login" className="text-primary hover:underline">
-                     Sign in
-                  </Link>
-               </div>
-            </CardContent>
-         </Card>
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full py-2.5 bg-orange-500 hover:bg-orange-600 disabled:bg-orange-500/50 text-white font-medium rounded-lg transition-colors"
+          >
+            {loading ? "Creating account..." : "Create Account"}
+          </button>
+
+          <p className="text-center text-sm text-gray-400">
+            Already have an account?{" "}
+            <Link href="/login" className="text-orange-500 hover:text-orange-400">
+              Sign in
+            </Link>
+          </p>
+        </form>
       </div>
-   );
+    </div>
+  );
 }
