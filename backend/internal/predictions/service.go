@@ -146,6 +146,9 @@ func (s *Service) storePrediction(game models.NBAGame, gameOdds []models.GameOdd
 	// Serialize key factors
 	keyFactorsJSON, _ := json.Marshal(result.KeyFactors)
 
+	// Store full AI JSON response so frontend can parse recommended_bets, risk_level, etc.
+	fullJSON, _ := json.Marshal(result)
+
 	bookmaker := ""
 	var homeOdd, awayOdd, ouLine *float64
 	if bestOdds != nil {
@@ -161,7 +164,7 @@ func (s *Service) storePrediction(game models.NBAGame, gameOdds []models.GameOdd
 		game.ID, game.HomeTeam, game.AwayTeam, game.GameDate,
 		result.WinProbability.Home, result.WinProbability.Away,
 		pick, confidence, bookmaker, homeOdd, awayOdd, ouLine,
-		string(keyFactorsJSON), result.Summary, time.Now(),
+		string(keyFactorsJSON), string(fullJSON), time.Now(),
 	)
 	return err
 }

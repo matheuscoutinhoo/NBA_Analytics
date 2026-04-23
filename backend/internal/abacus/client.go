@@ -176,18 +176,17 @@ func (c *Client) BuildGameAnalysisPrompt(game *models.NBAGame, homeRecent, awayR
 	}
 
 	sb.WriteString(`
-Please provide your analysis in the following JSON format:
+You MUST provide your analysis in the following JSON format. You MUST include EXACTLY 3 recommended bets — one for each market: moneyline, over_under, and handicap. Do NOT omit any of the 3 markets.
 {
   "win_probability": { "home": 0.00, "away": 0.00 },
   "recommended_bets": [
-    { "market": "moneyline|spread|over_under", "pick": "description", "confidence": "high|medium|low", "reasoning": "explanation" }
-  ],
-  "value_bets": [
-    { "market": "type", "pick": "description", "expected_value": 0.00, "reasoning": "explanation" }
+    { "market": "moneyline", "pick": "Team Name", "confidence": "high|medium|low", "reasoning": "detailed explanation of why this team wins" },
+    { "market": "over_under", "pick": "Over/Under X.X (assuming line is around this)", "confidence": "high|medium|low", "reasoning": "detailed explanation based on recent scoring trends" },
+    { "market": "handicap", "pick": "Team Name -X.X", "confidence": "high|medium|low", "reasoning": "detailed explanation of expected margin" }
   ],
   "risk_level": "low|medium|high",
-  "key_factors": ["factor1", "factor2"],
-  "summary": "Brief game analysis summary"
+  "key_factors": ["factor1", "factor2", "factor3"],
+  "summary": "Comprehensive game analysis summary with betting outlook"
 }
 `)
 	return sb.String()

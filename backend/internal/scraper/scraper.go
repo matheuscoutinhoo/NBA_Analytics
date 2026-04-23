@@ -289,11 +289,11 @@ func (s *Scraper) ScrapeOdds() error {
 }
 
 type oddsAPIEvent struct {
-	ID            string          `json:"id"`
-	CommenceTime  string          `json:"commence_time"`
-	HomeTeam      string          `json:"home_team"`
-	AwayTeam      string          `json:"away_team"`
-	Bookmakers    []oddsBookmaker `json:"bookmakers"`
+	ID           string          `json:"id"`
+	CommenceTime string          `json:"commence_time"`
+	HomeTeam     string          `json:"home_team"`
+	AwayTeam     string          `json:"away_team"`
+	Bookmakers   []oddsBookmaker `json:"bookmakers"`
 }
 
 type oddsBookmaker struct {
