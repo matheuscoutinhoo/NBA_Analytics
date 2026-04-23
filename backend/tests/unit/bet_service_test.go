@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	_ "modernc.org/sqlite"
 	"github.com/matheuscoutinhoo/better/internal/bets"
 	"github.com/matheuscoutinhoo/better/internal/database"
 	"github.com/matheuscoutinhoo/better/internal/models"
+	_ "modernc.org/sqlite"
 )
 
 func setupBetsTestDB(t *testing.T) *sql.DB {

@@ -43,15 +43,15 @@ type NBAGame struct {
 }
 
 type GameStats struct {
-	ID             int64     `json:"id"`
-	GameID         int64     `json:"game_id"`
-	Team           string    `json:"team"`
-	FieldGoalPct   *float64  `json:"field_goal_pct,omitempty"`
-	ThreePointPct  *float64  `json:"three_point_pct,omitempty"`
-	Rebounds       *int      `json:"rebounds,omitempty"`
-	Assists        *int      `json:"assists,omitempty"`
-	Turnovers      *int      `json:"turnovers,omitempty"`
-	CreatedAt      time.Time `json:"created_at"`
+	ID            int64     `json:"id"`
+	GameID        int64     `json:"game_id"`
+	Team          string    `json:"team"`
+	FieldGoalPct  *float64  `json:"field_goal_pct,omitempty"`
+	ThreePointPct *float64  `json:"three_point_pct,omitempty"`
+	Rebounds      *int      `json:"rebounds,omitempty"`
+	Assists       *int      `json:"assists,omitempty"`
+	Turnovers     *int      `json:"turnovers,omitempty"`
+	CreatedAt     time.Time `json:"created_at"`
 }
 
 type PlayerStats struct {
@@ -131,4 +131,23 @@ type AuditLog struct {
 	IPAddress string    `json:"ip_address,omitempty"`
 	UserAgent string    `json:"user_agent,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
+}
+
+type AIPrediction struct {
+	ID              int64     `json:"id"`
+	GameID          int64     `json:"game_id"`
+	HomeTeam        string    `json:"home_team"`
+	AwayTeam        string    `json:"away_team"`
+	GameDate        time.Time `json:"game_date"`
+	HomeWinProb     float64   `json:"home_win_prob"`
+	AwayWinProb     float64   `json:"away_win_prob"`
+	RecommendedPick string    `json:"recommended_pick"`
+	Confidence      string    `json:"confidence"`
+	Bookmaker       string    `json:"bookmaker"`
+	HomeOdd         *float64  `json:"home_odd,omitempty"`
+	AwayOdd         *float64  `json:"away_odd,omitempty"`
+	OverUnderLine   *float64  `json:"over_under_line,omitempty"`
+	KeyFactors      string    `json:"key_factors"`
+	Summary         string    `json:"summary"`
+	AnalyzedAt      time.Time `json:"analyzed_at"`
 }

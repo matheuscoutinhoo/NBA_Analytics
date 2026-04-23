@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/joho/godotenv"
 	"github.com/matheuscoutinhoo/better/internal/abacus"
 	"github.com/matheuscoutinhoo/better/internal/auth"
 	"github.com/matheuscoutinhoo/better/internal/bankroll"
@@ -14,10 +15,13 @@ import (
 	"github.com/matheuscoutinhoo/better/internal/games"
 	"github.com/matheuscoutinhoo/better/internal/middleware"
 	"github.com/matheuscoutinhoo/better/internal/odds"
+	"github.com/matheuscoutinhoo/better/internal/predictions"
 	"github.com/matheuscoutinhoo/better/internal/scraper"
 )
 
 func main() {
+	_ = godotenv.Load() // Load .env if present
+
 	cfg := config.Load()
 
 	if cfg.JWTSecret == "" || cfg.JWTRefreshSecret == "" {
@@ -47,12 +51,14 @@ func main() {
 	aiClient := abacus.NewClient(cfg.AbacusAPIKey, cfg.AbacusAPIURL)
 	insightSvc := games.NewInsightService(gamesRepo, oddsRepo, aiClient, database.DB)
 	bankrollSvc := bankroll.NewService(bankrollRepo)
+	predictionSvc := predictions.NewService(gamesRepo, oddsRepo, aiClient, database.DB)
 
 	// Handlers
 	authHandler := auth.NewHandler(authRepo, cfg.JWTSecret, cfg.JWTRefreshSecret)
 	gamesHandler := games.NewHandler(gamesRepo, insightSvc)
 	betsHandler := bets.NewHandler(betsRepo, bankrollSvc)
 	bankrollHandler := bankroll.NewHandler(bankrollSvc)
+	predictionsHandler := predictions.NewHandler(predictionSvc)
 
 	// Middleware
 	secMiddleware := middleware.NewSecurityMiddleware(cfg.AllowedOrigins, cfg.IsProduction())
@@ -95,6 +101,9 @@ func main() {
 	mux.Handle("PATCH /api/v1/account/profile", authMiddleware(http.HandlerFunc(authHandler.UpdateProfile)))
 	mux.Handle("PATCH /api/v1/account/password", authMiddleware(http.HandlerFunc(authHandler.ChangePassword)))
 
+	// Predictions routes (protected)
+	mux.Handle("GET /api/v1/predictions", authMiddleware(http.HandlerFunc(predictionsHandler.GetPredictions)))
+
 	// Health check
 	mux.HandleFunc("GET /api/v1/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -105,7 +114,7 @@ func main() {
 	handler := secMiddleware.SecurityHeaders(
 		secMiddleware.CORS(
 			rateLimiter.Limit(
-				middleware.MaxBodySize(1<<20)(mux),
+				middleware.MaxBodySize(1 << 20)(mux),
 			),
 		),
 	)
@@ -113,6 +122,9 @@ func main() {
 	// Start scraper cron job
 	scraperSvc := scraper.NewScraper(gamesRepo, oddsRepo, cfg.ScraperUserAgent, cfg.OddsAPIKey, cfg.OddsAPIURL)
 	scraperSvc.StartCronJob(6)
+
+	// Start AI predictions cron job (every 1 hour)
+	predictionSvc.StartCronJob(1)
 
 	port := cfg.AppPort
 	if port == "" {

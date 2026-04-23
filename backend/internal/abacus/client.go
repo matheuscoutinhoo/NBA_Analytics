@@ -28,27 +28,39 @@ func NewClient(apiKey, apiURL string) *Client {
 	}
 }
 
-type chatRequest struct {
-	Messages []message `json:"messages"`
-}
-
-type message struct {
+type chatMessage struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
 }
 
-type chatResponse struct {
-	Success  bool   `json:"success"`
-	Response string `json:"response"`
-	Error    string `json:"error,omitempty"`
+type chatCompletionRequest struct {
+	Model       string        `json:"model,omitempty"`
+	Messages    []chatMessage `json:"messages"`
+	MaxTokens   int           `json:"max_tokens,omitempty"`
+	Temperature float64       `json:"temperature"`
+}
+
+type chatCompletionResponse struct {
+	ID      string `json:"id"`
+	Choices []struct {
+		Message struct {
+			Content string `json:"content"`
+		} `json:"message"`
+		FinishReason string `json:"finish_reason"`
+	} `json:"choices"`
+	Error *struct {
+		Message string `json:"message"`
+	} `json:"error,omitempty"`
 }
 
 func (c *Client) Chat(prompt string) (string, error) {
-	reqBody := chatRequest{
-		Messages: []message{
+	reqBody := chatCompletionRequest{
+		Messages: []chatMessage{
 			{Role: "system", Content: "You are an expert NBA analyst and sports betting advisor. Provide analysis in JSON format when requested."},
 			{Role: "user", Content: prompt},
 		},
+		MaxTokens:   2048,
+		Temperature: 0.3,
 	}
 
 	body, err := json.Marshal(reqBody)
@@ -56,7 +68,7 @@ func (c *Client) Chat(prompt string) (string, error) {
 		return "", fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	req, err := http.NewRequest("POST", c.apiURL+"/chat", bytes.NewReader(body))
+	req, err := http.NewRequest("POST", c.apiURL+"/chat/completions", bytes.NewReader(body))
 	if err != nil {
 		return "", fmt.Errorf("failed to create request: %w", err)
 	}
@@ -79,17 +91,20 @@ func (c *Client) Chat(prompt string) (string, error) {
 		return "", fmt.Errorf("Abacus AI returned status %d: %s", resp.StatusCode, string(respBody))
 	}
 
-	var chatResp chatResponse
+	var chatResp chatCompletionResponse
 	if err := json.Unmarshal(respBody, &chatResp); err != nil {
-		// If we can't parse the structured response, return raw
 		return string(respBody), nil
 	}
 
-	if chatResp.Error != "" {
-		return "", fmt.Errorf("Abacus AI error: %s", chatResp.Error)
+	if chatResp.Error != nil {
+		return "", fmt.Errorf("Abacus AI error: %s", chatResp.Error.Message)
 	}
 
-	return chatResp.Response, nil
+	if len(chatResp.Choices) == 0 {
+		return "", fmt.Errorf("Abacus AI returned no choices")
+	}
+
+	return chatResp.Choices[0].Message.Content, nil
 }
 
 func (c *Client) BuildGameAnalysisPrompt(game *models.NBAGame, homeRecent, awayRecent, h2h []models.NBAGame, odds []models.GameOdds) string {

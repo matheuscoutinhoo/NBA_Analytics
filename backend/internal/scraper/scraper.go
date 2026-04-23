@@ -26,9 +26,9 @@ func NewScraper(gamesRepo *games.Repository, oddsRepo *odds.Repository, userAgen
 	return &Scraper{
 		gamesRepo: gamesRepo,
 		oddsRepo:  oddsRepo,
-		userAgent:  userAgent,
-		oddsKey:    oddsKey,
-		oddsURL:    oddsURL,
+		userAgent: userAgent,
+		oddsKey:   oddsKey,
+		oddsURL:   oddsURL,
 		httpCli: &http.Client{
 			Timeout: 30 * time.Second,
 		},
@@ -44,14 +44,14 @@ type bdlGamesResponse struct {
 }
 
 type bdlGame struct {
-	ID             int       `json:"id"`
-	Date           string    `json:"date"`
-	HomeTeam       bdlTeam   `json:"home_team"`
-	VisitorTeam    bdlTeam   `json:"visitor_team"`
-	HomeTeamScore  int       `json:"home_team_score"`
-	VisitorTeamScore int    `json:"visitor_team_score"`
-	Status         string    `json:"status"`
-	Season         int       `json:"season"`
+	ID               int     `json:"id"`
+	Date             string  `json:"date"`
+	HomeTeam         bdlTeam `json:"home_team"`
+	VisitorTeam      bdlTeam `json:"visitor_team"`
+	HomeTeamScore    int     `json:"home_team_score"`
+	VisitorTeamScore int     `json:"visitor_team_score"`
+	Status           string  `json:"status"`
+	Season           int     `json:"season"`
 }
 
 type bdlTeam struct {
@@ -63,11 +63,11 @@ type bdlTeam struct {
 }
 
 type bdlMeta struct {
-	TotalPages  int `json:"total_pages"`
-	CurrentPage int `json:"current_page"`
+	TotalPages  int  `json:"total_pages"`
+	CurrentPage int  `json:"current_page"`
 	NextPage    *int `json:"next_page"`
-	PerPage     int `json:"per_page"`
-	TotalCount  int `json:"total_count"`
+	PerPage     int  `json:"per_page"`
+	TotalCount  int  `json:"total_count"`
 }
 
 func (s *Scraper) ScrapeRecentGames() error {
@@ -230,9 +230,9 @@ func (s *Scraper) ScrapeOdds() error {
 }
 
 type oddsAPIEvent struct {
-	ID        string          `json:"id"`
-	HomeTeam  string          `json:"home_team"`
-	AwayTeam  string          `json:"away_team"`
+	ID         string          `json:"id"`
+	HomeTeam   string          `json:"home_team"`
+	AwayTeam   string          `json:"away_team"`
 	Bookmakers []oddsBookmaker `json:"bookmakers"`
 }
 

@@ -174,6 +174,28 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 );
 CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON audit_logs(user_id);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs(action);
+
+CREATE TABLE IF NOT EXISTS ai_predictions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    game_id INTEGER NOT NULL,
+    home_team TEXT NOT NULL,
+    away_team TEXT NOT NULL,
+    game_date DATETIME NOT NULL,
+    home_win_prob REAL NOT NULL DEFAULT 0,
+    away_win_prob REAL NOT NULL DEFAULT 0,
+    recommended_pick TEXT NOT NULL DEFAULT '',
+    confidence TEXT NOT NULL DEFAULT 'medium',
+    bookmaker TEXT NOT NULL DEFAULT '',
+    home_odd REAL,
+    away_odd REAL,
+    over_under_line REAL,
+    key_factors TEXT NOT NULL DEFAULT '',
+    summary TEXT NOT NULL DEFAULT '',
+    analyzed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (game_id) REFERENCES nba_games(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_ai_predictions_game_id ON ai_predictions(game_id);
+CREATE INDEX IF NOT EXISTS idx_ai_predictions_analyzed_at ON ai_predictions(analyzed_at);
 `
 
 func Init(dbPath string) error {

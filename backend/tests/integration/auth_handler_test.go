@@ -8,9 +8,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	_ "modernc.org/sqlite"
 	"github.com/matheuscoutinhoo/better/internal/auth"
 	"github.com/matheuscoutinhoo/better/internal/database"
+	_ "modernc.org/sqlite"
 )
 
 func setupIntegrationDB(t *testing.T) *sql.DB {

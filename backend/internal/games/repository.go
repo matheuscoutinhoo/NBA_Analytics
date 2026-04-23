@@ -18,9 +18,10 @@ func NewRepository(db *sql.DB) *Repository {
 
 func (r *Repository) GetRecentGames(days int) ([]models.NBAGame, error) {
 	since := time.Now().AddDate(0, 0, -days)
+	now := time.Now()
 	rows, err := r.db.Query(
-		"SELECT id, external_id, game_date, home_team, away_team, home_score, away_score, status, season, scraped_at FROM nba_games WHERE game_date >= ? ORDER BY game_date DESC",
-		since,
+		"SELECT id, external_id, game_date, home_team, away_team, home_score, away_score, status, season, scraped_at FROM nba_games WHERE game_date >= ? AND game_date <= ? ORDER BY game_date DESC",
+		since, now,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get recent games: %w", err)

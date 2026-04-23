@@ -12,8 +12,8 @@ import (
 )
 
 type Handler struct {
-	repo      *Repository
-	jwtSecret string
+	repo          *Repository
+	jwtSecret     string
 	refreshSecret string
 }
 

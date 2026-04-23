@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/matheuscoutinhoo/better/internal/models"
 	"github.com/matheuscoutinhoo/better/internal/abacus"
+	"github.com/matheuscoutinhoo/better/internal/models"
 )
 
 func TestBuildGameAnalysisPrompt(t *testing.T) {
@@ -66,8 +66,8 @@ func TestBuildGameAnalysisPrompt(t *testing.T) {
 }
 
 func contains(s, substr string) bool {
-	return len(s) > 0 && len(substr) > 0 && 
-		len(s) >= len(substr) && 
+	return len(s) > 0 && len(substr) > 0 &&
+		len(s) >= len(substr) &&
 		containsStr(s, substr)
 }
 

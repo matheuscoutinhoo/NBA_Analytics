@@ -4,9 +4,9 @@ import (
 	"database/sql"
 	"testing"
 
-	_ "modernc.org/sqlite"
 	"github.com/matheuscoutinhoo/better/internal/bankroll"
 	"github.com/matheuscoutinhoo/better/internal/database"
+	_ "modernc.org/sqlite"
 )
 
 func setupTestDB(t *testing.T) *sql.DB {
