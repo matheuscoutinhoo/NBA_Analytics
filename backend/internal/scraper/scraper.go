@@ -196,8 +196,11 @@ func (s *Scraper) ScrapeOdds() error {
 	upcomingGames, _ := s.gamesRepo.GetUpcomingGames(7)
 	allGames := append(recentGames, upcomingGames...)
 
+	log.Printf("Odds API returned %d events, matching against %d games in DB", len(oddsEvents), len(allGames))
+
 	matched := 0
 	for _, event := range oddsEvents {
+		foundMatch := false
 		for _, game := range allGames {
 			if matchesGame(event, game) {
 				for _, bookmaker := range event.Bookmakers {
@@ -224,8 +227,60 @@ func (s *Scraper) ScrapeOdds() error {
 					}
 				}
 				matched++
+				foundMatch = true
 				break
 			}
+		}
+		// If no matching game, create one from the odds event
+		if !foundMatch {
+			commenceTime := time.Now().Add(24 * time.Hour) // default future
+			if event.CommenceTime != "" {
+				if t, err := time.Parse(time.RFC3339, event.CommenceTime); err == nil {
+					commenceTime = t
+				}
+			}
+			status := "scheduled"
+			if commenceTime.Before(time.Now()) {
+				status = "live"
+			}
+			newGame := &models.NBAGame{
+				ExternalID: event.ID,
+				GameDate:   commenceTime,
+				HomeTeam:   event.HomeTeam,
+				AwayTeam:   event.AwayTeam,
+				Status:     status,
+				Season:     "2025-2026",
+			}
+			gameID, err := s.gamesRepo.UpsertGame(newGame)
+			if err != nil {
+				log.Printf("Failed to create game for odds event %s vs %s: %v", event.HomeTeam, event.AwayTeam, err)
+				continue
+			}
+			for _, bookmaker := range event.Bookmakers {
+				for _, market := range bookmaker.Markets {
+					odd := &models.GameOdds{
+						GameID:     gameID,
+						Bookmaker:  bookmaker.Title,
+						MarketType: market.Key,
+					}
+					for _, outcome := range market.Outcomes {
+						switch outcome.Name {
+						case event.HomeTeam:
+							odd.HomeOdd = &outcome.Price
+						case event.AwayTeam:
+							odd.AwayOdd = &outcome.Price
+						case "Over":
+							odd.OverOdd = &outcome.Price
+							odd.OverUnderLine = outcome.Point
+						case "Under":
+							odd.UnderOdd = &outcome.Price
+						}
+					}
+					s.oddsRepo.UpsertOdds(odd)
+				}
+			}
+			matched++
+			log.Printf("Created game + odds for: %s vs %s", event.HomeTeam, event.AwayTeam)
 		}
 	}
 
@@ -234,10 +289,11 @@ func (s *Scraper) ScrapeOdds() error {
 }
 
 type oddsAPIEvent struct {
-	ID         string          `json:"id"`
-	HomeTeam   string          `json:"home_team"`
-	AwayTeam   string          `json:"away_team"`
-	Bookmakers []oddsBookmaker `json:"bookmakers"`
+	ID            string          `json:"id"`
+	CommenceTime  string          `json:"commence_time"`
+	HomeTeam      string          `json:"home_team"`
+	AwayTeam      string          `json:"away_team"`
+	Bookmakers    []oddsBookmaker `json:"bookmakers"`
 }
 
 type oddsBookmaker struct {
