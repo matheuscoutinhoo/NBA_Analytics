@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import ProtectedLayout from "@/components/ProtectedLayout";
 import apiClient from "@/lib/api-client";
 import type { NBAGame, GameOdds, AIInsight } from "@/types";
-import { Loader2, Sparkles } from "lucide-react";
+import { Loader2, Sparkles, TrendingUp, Shield, Zap, ChevronDown, ChevronUp } from "lucide-react";
 
 export default function GamesPage() {
    const [upcoming, setUpcoming] = useState<NBAGame[]>([]);
@@ -176,9 +176,7 @@ export default function GamesPage() {
                               </h4>
                            </div>
                            {insight ? (
-                              <div className="text-sm text-gray-300 whitespace-pre-wrap max-h-96 overflow-y-auto">
-                                 {insight.insight_text}
-                              </div>
+                              <InsightDisplay text={insight.insight_text} />
                            ) : (
                               <button
                                  onClick={handleGenerateInsight}
@@ -209,5 +207,168 @@ export default function GamesPage() {
             </div>
          </div>
       </ProtectedLayout>
+   );
+}
+
+interface ParsedInsight {
+   win_probability?: { home: number; away: number };
+   recommended_bets?: Array<{
+      market: string;
+      pick: string;
+      confidence: string;
+      reasoning: string;
+   }>;
+   risk_level?: string;
+   key_factors?: string[];
+   summary?: string;
+}
+
+function tryParseInsight(text: string): ParsedInsight | null {
+   if (!text) return null;
+   let jsonStr = text.trim();
+   // Strip markdown code fences
+   if (jsonStr.startsWith("```")) {
+      jsonStr = jsonStr.replace(/^```(?:json)?\s*/, "").replace(/```\s*$/, "");
+   }
+   // Find JSON object
+   const start = jsonStr.indexOf("{");
+   const end = jsonStr.lastIndexOf("}");
+   if (start === -1 || end === -1) return null;
+   try {
+      return JSON.parse(jsonStr.substring(start, end + 1));
+   } catch {
+      return null;
+   }
+}
+
+function getConfBadge(conf: string) {
+   switch (conf?.toLowerCase()) {
+      case "high":
+         return { color: "text-green-400", bg: "bg-green-500/10 border-green-500/20", Icon: Zap };
+      case "medium":
+         return { color: "text-yellow-400", bg: "bg-yellow-500/10 border-yellow-500/20", Icon: Shield };
+      default:
+         return { color: "text-gray-400", bg: "bg-gray-500/10 border-gray-500/20", Icon: Shield };
+   }
+}
+
+function InsightDisplay({ text }: { text: string }) {
+   const [expanded, setExpanded] = useState(false);
+   const parsed = tryParseInsight(text);
+
+   if (!parsed) {
+      // Fallback: plain text
+      return (
+         <div className="text-sm text-gray-300 whitespace-pre-wrap max-h-96 overflow-y-auto">
+            {text}
+         </div>
+      );
+   }
+
+   const homeProb = (parsed.win_probability?.home ?? 0.5) * 100;
+   const awayProb = (parsed.win_probability?.away ?? 0.5) * 100;
+
+   return (
+      <div className="space-y-4">
+         {/* Win Probability */}
+         {parsed.win_probability && (
+            <div>
+               <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">Win Probability</p>
+               <div className="space-y-2">
+                  <div className="flex items-center gap-3">
+                     <span className="text-xs text-gray-400 w-12 text-right">Home</span>
+                     <div className="flex-1 h-2 rounded-full bg-gray-700 overflow-hidden">
+                        <div className="h-full rounded-full bg-green-500 transition-all duration-500" style={{ width: `${homeProb}%` }} />
+                     </div>
+                     <span className={`text-sm font-bold tabular-nums w-12 ${homeProb >= awayProb ? "text-green-400" : "text-gray-400"}`}>
+                        {homeProb.toFixed(0)}%
+                     </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                     <span className="text-xs text-gray-400 w-12 text-right">Away</span>
+                     <div className="flex-1 h-2 rounded-full bg-gray-700 overflow-hidden">
+                        <div className="h-full rounded-full bg-blue-500 transition-all duration-500" style={{ width: `${awayProb}%` }} />
+                     </div>
+                     <span className={`text-sm font-bold tabular-nums w-12 ${awayProb > homeProb ? "text-blue-400" : "text-gray-400"}`}>
+                        {awayProb.toFixed(0)}%
+                     </span>
+                  </div>
+               </div>
+            </div>
+         )}
+
+         {/* Recommended Bets */}
+         {parsed.recommended_bets && parsed.recommended_bets.length > 0 && (
+            <div>
+               <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">Recommended Bets</p>
+               <div className="space-y-2">
+                  {parsed.recommended_bets.map((bet, i) => {
+                     const badge = getConfBadge(bet.confidence);
+                     return (
+                        <div key={i} className="bg-gray-800/60 rounded-lg p-3 border border-gray-700/40">
+                           <div className="flex items-center justify-between mb-1.5">
+                              <div className="flex items-center gap-2">
+                                 <TrendingUp className="h-3.5 w-3.5 text-purple-400" />
+                                 <span className="text-sm font-medium text-white">{bet.pick}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                 <span className="text-[10px] uppercase tracking-wider text-gray-500">{bet.market}</span>
+                                 <span className={`inline-flex items-center gap-1 text-[10px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded-full border ${badge.bg}`}>
+                                    <badge.Icon className="h-3 w-3" />
+                                    <span className={badge.color}>{bet.confidence}</span>
+                                 </span>
+                              </div>
+                           </div>
+                           {bet.reasoning && (
+                              <p className="text-xs text-gray-400 leading-relaxed">{bet.reasoning}</p>
+                           )}
+                        </div>
+                     );
+                  })}
+               </div>
+            </div>
+         )}
+
+         {/* Risk Level */}
+         {parsed.risk_level && (
+            <div className="flex items-center gap-2">
+               <span className="text-xs text-gray-500 uppercase tracking-wider">Risk:</span>
+               <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${
+                  parsed.risk_level.toLowerCase() === "low" ? "bg-green-500/10 border-green-500/20 text-green-400" :
+                  parsed.risk_level.toLowerCase() === "medium" ? "bg-yellow-500/10 border-yellow-500/20 text-yellow-400" :
+                  "bg-red-500/10 border-red-500/20 text-red-400"
+               }`}>
+                  {parsed.risk_level}
+               </span>
+            </div>
+         )}
+
+         {/* Key Factors */}
+         {parsed.key_factors && parsed.key_factors.length > 0 && (
+            <div>
+               <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">Key Factors</p>
+               <div className={`flex flex-wrap gap-1.5 ${expanded ? "" : "max-h-16 overflow-hidden"}`}>
+                  {parsed.key_factors.map((f, i) => (
+                     <span key={i} className="inline-flex items-center text-[11px] px-2 py-1 rounded-md bg-gray-800/80 text-gray-300 border border-gray-700/50">
+                        {f}
+                     </span>
+                  ))}
+               </div>
+               {parsed.key_factors.length > 4 && (
+                  <button onClick={() => setExpanded(!expanded)} className="flex items-center gap-1 text-[11px] text-gray-500 hover:text-gray-300 mt-1.5 transition-colors">
+                     {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                     {expanded ? "Show less" : `Show all ${parsed.key_factors.length} factors`}
+                  </button>
+               )}
+            </div>
+         )}
+
+         {/* Summary */}
+         {parsed.summary && (
+            <div className="bg-purple-500/5 border border-purple-500/10 rounded-lg p-3">
+               <p className="text-xs text-gray-300 leading-relaxed">{parsed.summary}</p>
+            </div>
+         )}
+      </div>
    );
 }
