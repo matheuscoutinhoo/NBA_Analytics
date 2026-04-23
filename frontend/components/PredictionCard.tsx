@@ -1,7 +1,8 @@
 "use client";
 
-import type { AIPrediction } from "@/types";
-import { Brain, TrendingUp, Shield, Zap, ChevronDown, ChevronUp } from "lucide-react";
+import type { AIPrediction, GameOdds } from "@/types";
+import apiClient from "@/lib/api-client";
+import { Brain, TrendingUp, Shield, Zap, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import { useState } from "react";
 
 /** Try to parse a string that might be JSON or a JSON-embedded summary */
@@ -68,6 +69,26 @@ function getProbColor(pct: number): string {
 
 export default function PredictionCard({ pred }: { pred: AIPrediction }) {
    const [expanded, setExpanded] = useState(false);
+   const [odds, setOdds] = useState<GameOdds[]>([]);
+   const [oddsLoading, setOddsLoading] = useState(false);
+   const [oddsFetched, setOddsFetched] = useState(false);
+
+   const handleToggle = async () => {
+      const next = !expanded;
+      setExpanded(next);
+      if (next && !oddsFetched) {
+         setOddsLoading(true);
+         try {
+            const data = await apiClient.getGameOdds(pred.game_id);
+            setOdds(data || []);
+         } catch {
+            setOdds([]);
+         } finally {
+            setOddsLoading(false);
+            setOddsFetched(true);
+         }
+      }
+   };
 
    const homeProb = pred.home_win_prob * 100;
    const awayProb = pred.away_win_prob * 100;
@@ -175,7 +196,7 @@ export default function PredictionCard({ pred }: { pred: AIPrediction }) {
             </div>
          </div>
 
-         {/* Summary + Factors */}
+         {/* Summary + Factors + Odds */}
          <div className="px-4 py-3">
             {summary && (
                <p className={`text-xs text-gray-400 leading-relaxed ${expanded ? "" : "line-clamp-2"}`}>
@@ -196,15 +217,56 @@ export default function PredictionCard({ pred }: { pred: AIPrediction }) {
                </div>
             )}
 
-            {(summary.length > 120 || factors.length > 3) && (
-               <button
-                  onClick={() => setExpanded(!expanded)}
-                  className="flex items-center gap-1 text-[11px] text-gray-500 hover:text-gray-300 mt-2 transition-colors"
-               >
-                  {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                  {expanded ? "Show less" : "Show more"}
-               </button>
+            {/* Bet365 Odds (expanded) */}
+            {expanded && (
+               <div className="mt-3">
+                  {oddsLoading ? (
+                     <div className="flex items-center justify-center py-3">
+                        <Loader2 className="h-4 w-4 animate-spin text-purple-400" />
+                        <span className="text-xs text-gray-500 ml-2">Loading odds...</span>
+                     </div>
+                  ) : odds.length === 0 ? (
+                     <p className="text-xs text-gray-600 text-center py-2">No odds available for this game</p>
+                  ) : (
+                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {odds.map((o) => (
+                           <div key={o.id} className="bg-gray-900/60 rounded-lg p-2.5 border border-gray-700/30">
+                              <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-1.5 truncate">
+                                 {o.bookmaker}
+                              </div>
+                              <div className="text-[10px] text-gray-600 mb-1">{o.market_type === "h2h" ? "Moneyline" : o.market_type}</div>
+                              {o.home_odd != null && (
+                                 <div className="flex items-center justify-between mb-0.5">
+                                    <span className="text-[11px] text-gray-400 truncate mr-1">{pred.home_team.split(" ").pop()}</span>
+                                    <span className="text-xs font-bold font-mono text-green-400">{o.home_odd.toFixed(2)}</span>
+                                 </div>
+                              )}
+                              {o.away_odd != null && (
+                                 <div className="flex items-center justify-between mb-0.5">
+                                    <span className="text-[11px] text-gray-400 truncate mr-1">{pred.away_team.split(" ").pop()}</span>
+                                    <span className="text-xs font-bold font-mono text-blue-400">{o.away_odd.toFixed(2)}</span>
+                                 </div>
+                              )}
+                              {o.over_under_line != null && (
+                                 <div className="flex items-center justify-between border-t border-gray-700/30 pt-1 mt-1">
+                                    <span className="text-[11px] text-gray-500">O/U</span>
+                                    <span className="text-xs font-bold font-mono text-yellow-400">{o.over_under_line.toFixed(1)}</span>
+                                 </div>
+                              )}
+                           </div>
+                        ))}
+                     </div>
+                  )}
+               </div>
             )}
+
+            <button
+               onClick={handleToggle}
+               className="flex items-center gap-1 text-[11px] text-gray-500 hover:text-gray-300 mt-2 transition-colors"
+            >
+               {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+               {expanded ? "Show less" : "Show more"}
+            </button>
          </div>
       </div>
    );

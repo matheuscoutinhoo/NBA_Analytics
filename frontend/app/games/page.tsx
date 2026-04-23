@@ -99,8 +99,8 @@ export default function GamesPage() {
                               key={game.id}
                               onClick={() => handleSelectGame(game)}
                               className={`text-left bg-gray-900 rounded-xl border p-4 transition-colors ${selectedGame?.id === game.id
-                                    ? "border-orange-500"
-                                    : "border-gray-800 hover:border-gray-700"
+                                 ? "border-orange-500"
+                                 : "border-gray-800 hover:border-gray-700"
                                  }`}
                            >
                               <div className="text-xs text-gray-500 mb-2">
@@ -108,8 +108,8 @@ export default function GamesPage() {
                                     weekday: "short", month: "short", day: "numeric",
                                  })}
                                  <span className={`ml-2 px-2 py-0.5 rounded-full ${game.status === "final" ? "bg-green-500/10 text-green-400" :
-                                       game.status === "scheduled" ? "bg-blue-500/10 text-blue-400" :
-                                          "bg-yellow-500/10 text-yellow-400"
+                                    game.status === "scheduled" ? "bg-blue-500/10 text-blue-400" :
+                                       "bg-yellow-500/10 text-yellow-400"
                                     }`}>
                                     {game.status}
                                  </span>
@@ -333,11 +333,10 @@ function InsightDisplay({ text }: { text: string }) {
          {parsed.risk_level && (
             <div className="flex items-center gap-2">
                <span className="text-xs text-gray-500 uppercase tracking-wider">Risk:</span>
-               <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${
-                  parsed.risk_level.toLowerCase() === "low" ? "bg-green-500/10 border-green-500/20 text-green-400" :
-                  parsed.risk_level.toLowerCase() === "medium" ? "bg-yellow-500/10 border-yellow-500/20 text-yellow-400" :
-                  "bg-red-500/10 border-red-500/20 text-red-400"
-               }`}>
+               <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${parsed.risk_level.toLowerCase() === "low" ? "bg-green-500/10 border-green-500/20 text-green-400" :
+                     parsed.risk_level.toLowerCase() === "medium" ? "bg-yellow-500/10 border-yellow-500/20 text-yellow-400" :
+                        "bg-red-500/10 border-red-500/20 text-red-400"
+                  }`}>
                   {parsed.risk_level}
                </span>
             </div>

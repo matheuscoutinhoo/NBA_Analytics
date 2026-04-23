@@ -115,11 +115,24 @@ export default function DashboardPage() {
                      <p className="text-gray-600 text-xs mt-1">Predictions update every hour using recent games + Bet365 odds</p>
                   </div>
                ) : (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                     {predictions.map((pred) => (
-                        <PredictionCard key={pred.id} pred={pred} />
-                     ))}
-                  </div>
+                  (() => {
+                     const topPreds = predictions.filter(
+                        (p) => Math.max(p.home_win_prob, p.away_win_prob) >= 0.6
+                     );
+                     return topPreds.length === 0 ? (
+                        <div className="text-center py-8">
+                           <Brain className="h-10 w-10 text-purple-500/30 mx-auto mb-3" />
+                           <p className="text-gray-400 font-medium">No high-confidence predictions right now</p>
+                           <p className="text-gray-600 text-xs mt-1">Showing only predictions with 60%+ win probability</p>
+                        </div>
+                     ) : (
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                           {topPreds.map((pred) => (
+                              <PredictionCard key={pred.id} pred={pred} />
+                           ))}
+                        </div>
+                     );
+                  })()
                )}
             </div>
 
