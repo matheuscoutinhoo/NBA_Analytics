@@ -170,7 +170,7 @@ func (s *Service) storePrediction(game models.NBAGame, gameOdds []models.GameOdd
 func (s *Service) GetPredictions() ([]models.AIPrediction, error) {
 	rows, err := s.db.Query(
 		`SELECT id, game_id, home_team, away_team, game_date, home_win_prob, away_win_prob, recommended_pick, confidence, bookmaker, home_odd, away_odd, over_under_line, key_factors, summary, analyzed_at 
-		FROM ai_predictions ORDER BY home_win_prob + away_win_prob DESC, game_date ASC`,
+		FROM ai_predictions ORDER BY MAX(home_win_prob, away_win_prob) DESC, game_date ASC`,
 	)
 	if err != nil {
 		return nil, err

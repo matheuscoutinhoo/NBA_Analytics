@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/matheuscoutinhoo/better/internal/games"
@@ -158,7 +159,7 @@ func (s *Scraper) ScrapeOdds() error {
 		return s.seedSimulatedOdds()
 	}
 
-	url := fmt.Sprintf("%s/sports/basketball_nba/odds/?apiKey=%s&regions=us&markets=h2h,totals&oddsFormat=decimal",
+	url := fmt.Sprintf("%s/sports/basketball_nba/odds/?apiKey=%s&regions=us,eu,uk&markets=h2h,totals&oddsFormat=decimal",
 		s.oddsURL, s.oddsKey)
 
 	req, err := http.NewRequest("GET", url, nil)
@@ -175,7 +176,8 @@ func (s *Scraper) ScrapeOdds() error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		log.Printf("Odds API returned %d, using simulated data", resp.StatusCode)
+		body, _ := io.ReadAll(resp.Body)
+		log.Printf("Odds API returned %d: %s, using simulated data", resp.StatusCode, string(body))
 		return s.seedSimulatedOdds()
 	}
 
@@ -189,12 +191,13 @@ func (s *Scraper) ScrapeOdds() error {
 		return fmt.Errorf("failed to parse odds: %w", err)
 	}
 
-	for _, event := range oddsEvents {
-		// Try to find matching game
-		recentGames, _ := s.gamesRepo.GetRecentGames(30)
-		upcoming, _ := s.gamesRepo.GetUpcomingGames(7)
-		allGames := append(recentGames, upcoming...)
+	// Pre-fetch all games once
+	recentGames, _ := s.gamesRepo.GetRecentGames(30)
+	upcomingGames, _ := s.gamesRepo.GetUpcomingGames(7)
+	allGames := append(recentGames, upcomingGames...)
 
+	matched := 0
+	for _, event := range oddsEvents {
 		for _, game := range allGames {
 			if matchesGame(event, game) {
 				for _, bookmaker := range event.Bookmakers {
@@ -220,12 +223,13 @@ func (s *Scraper) ScrapeOdds() error {
 						s.oddsRepo.UpsertOdds(odd)
 					}
 				}
+				matched++
 				break
 			}
 		}
 	}
 
-	log.Println("Odds scrape completed")
+	log.Printf("Odds scrape completed: %d events from API, %d matched to games", len(oddsEvents), matched)
 	return nil
 }
 
@@ -254,12 +258,12 @@ type oddsOutcome struct {
 }
 
 func matchesGame(event oddsAPIEvent, game models.NBAGame) bool {
-	return (contains(event.HomeTeam, game.HomeTeam) || contains(game.HomeTeam, event.HomeTeam)) &&
-		(contains(event.AwayTeam, game.AwayTeam) || contains(game.AwayTeam, event.AwayTeam))
-}
-
-func contains(s, substr string) bool {
-	return len(s) > 0 && len(substr) > 0 && (s == substr || len(s) > len(substr))
+	eHome := strings.ToLower(event.HomeTeam)
+	gHome := strings.ToLower(game.HomeTeam)
+	eAway := strings.ToLower(event.AwayTeam)
+	gAway := strings.ToLower(game.AwayTeam)
+	return (eHome == gHome || strings.Contains(eHome, gHome) || strings.Contains(gHome, eHome)) &&
+		(eAway == gAway || strings.Contains(eAway, gAway) || strings.Contains(gAway, eAway))
 }
 
 // Simulated data for when APIs aren't available
